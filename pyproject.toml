@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "owlipy"
+version = "0.0.1"
+dependencies = []
+requires-python = ">= 3.10"
+authors = [{name = "Pouya Motakef", email = "p.motakef@gmail.com "}]
+maintainers = [{name = "Pouya Motakef", email = "p.motakef@gmail.com "}]
+description = "Present mathematical equality and inequality in symbol format."
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["symbol"]
+
+[project.urls]
+Homepage = "https://github.com/pmotakef/owlipy"
+Documentation = "https://github.com/pmotakef/owlipy"
+Repository = "https://github.com/pmotakef/owlipy"
+Issues = "https://github.com/pmotakef/owlipy/issues"
+Changelog = "https://github.com/pmotakef/owlipy/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.bumpver]
+current_version = "0.0.1"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message = "bump version {old_version} -> {new_version}"
+tag_message = "{new_version}"
+tag_scope = "default"
+pre_commit_hook = ""
+post_commit_hook = ""
+commit = true
+tag = true
+push = false
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = [
+    'current_version = "{version}"',
+    'version = "{version}"',
+]
+
+
