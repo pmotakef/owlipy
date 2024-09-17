@@ -1,7 +1,5 @@
 import logging
-
 import gurobipy
-
 from owlipy.types import ModelParams, ModelStatus, ObjSense, VarType
 from owlipy.exceptions import SolverException
 from owlipy.wrappers.gurobi.gurobi_mapper import (
@@ -93,7 +91,7 @@ class OptGurobiWrapper(OwlInterface):
             return var_name
         return var_name.getAttr("x")
 
-    def set_param(self, k: ModelParams, v):
+    def set_parameter(self, k: ModelParams, v):
         if k in PARAMS_MAPPINGS:
             self.model.setParam(PARAMS_MAPPINGS[k], v)
         else:
