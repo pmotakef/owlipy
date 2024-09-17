@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "owlipy"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = ["symbolipy"]
 requires-python = ">= 3.10"
 authors = [{name = "Pouya Motakef", email = "p.motakef@gmail.com "}]
@@ -25,7 +25,7 @@ Changelog = "https://github.com/pmotakef/owlipy/blob/main/CHANGELOG.md"
 test = ["pytest"]
 
 [tool.bumpver]
-current_version = "0.0.1"
+current_version = "0.0.2"
 version_pattern = "MAJOR.MINOR.PATCH"
 commit_message = "bump version {old_version} -> {new_version}"
 tag_message = "{new_version}"
