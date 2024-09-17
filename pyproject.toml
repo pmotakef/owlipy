@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "owlipy"
 version = "0.0.1"
-dependencies = []
+dependencies = ["symbolipy"]
 requires-python = ">= 3.10"
 authors = [{name = "Pouya Motakef", email = "p.motakef@gmail.com "}]
 maintainers = [{name = "Pouya Motakef", email = "p.motakef@gmail.com "}]
