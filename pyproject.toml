@@ -22,7 +22,7 @@ Issues = "https://github.com/pmotakef/owlipy/issues"
 Changelog = "https://github.com/pmotakef/owlipy/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-test = ["pytest"]
+dev = ["pytest", "gurobipy", "docplex", "highspy"]
 
 [tool.bumpver]
 current_version = "0.0.2"
