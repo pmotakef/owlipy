@@ -9,7 +9,6 @@ from owlipy.wrappers.highs.highs_mapper import (
     HIGHS_VAR, HIGHS_MODEL_STATUS, HIGHS_PARAMS
 )
 from owlipy.owl_interface import OwlInterface
-import numpy
 
 
 class OptHighsWrapper(OwlInterface):
@@ -17,13 +16,9 @@ class OptHighsWrapper(OwlInterface):
         super(OptHighsWrapper).__init__()
         self.logger = logging.getLogger(__name__)
         self.model = highspy.Highs()
-        # self.env = None
         self.partial_objective_fn = None
         self.model_sense = ObjSense.MIN
         self.solution = None
-
-    # def set_env(self, **kwargs):
-    #     self.env = None
 
     def reset_model(self):
         self.solution = None
@@ -86,14 +81,6 @@ class OptHighsWrapper(OwlInterface):
         self.model.run()
         model_status = self.model.getModelStatus()
         return HIGHS_MODEL_STATUS[model_status] if model_status in HIGHS_MODEL_STATUS else None
-
-    # def compute_iis(self, file_path: str | None = None):
-    #     try:
-    #         self.model.computeIIS()
-    #         self.model.write(file_path)
-    #     except Exception as e:
-    #         raise SolverException(f"{e}- Couldn't compute and save IIS.")
-    #     return None
 
     def get_value(self, var_name: highs_var):
         if self.solution is None:
