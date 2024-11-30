@@ -24,6 +24,7 @@ class Solvers(Enum):
     CPLEX = 2
     HIGHS = 3
     SCIPY = 4
+    HEXALY = 5
     DEBUG = 100
 
 
