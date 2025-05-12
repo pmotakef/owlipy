@@ -19,6 +19,7 @@ class OptCplexWrapper(OwlInterface):
         self.objective_fn = 0
         self.verbose = False
         self.quality_metrics = True
+        self.warm_start = None
 
     def set_env(self, **kwargs):
         self.env = None
@@ -28,7 +29,7 @@ class OptCplexWrapper(OwlInterface):
         self.model.quality_metrics = self.quality_metrics
         self.logger.info(f"created cplex model {name}")
 
-    def add_var(self, name: str, var_type: VarType = VarType.CONTINUOUS, lb: float = None, ub: float = None, start: float = None):
+    def add_var(self, name: str, var_type: VarType = VarType.CONTINUOUS, lb: float = None, ub: float = None, start: int = None):
         if ub is None:
             ub = self.model.infinity if var_type != VarType.BINARY else 1
         if lb is None:
@@ -40,9 +41,13 @@ class OptCplexWrapper(OwlInterface):
             v = self.model.integer_var(lb=lb, ub=ub, name=name)
         elif var_type == VarType.CONTINUOUS:
             v = self.model.continuous_var(lb=lb, ub=ub, name=name)
+        if start is not None and var_type != VarType.CONTINUOUS:
+            if self.warm_start is None:
+                self.warm_start = self.model.new_solution()
+            self.warm_start.add_var_value(v, start)
         return v
 
-    def add_vars(self, indices: list, name: str, var_type: VarType = VarType.CONTINUOUS, lb: float = None, ub: float = None, start: list[float] = None):
+    def add_vars(self, indices: list, name: str, var_type: VarType = VarType.CONTINUOUS, lb: float = None, ub: float = None, start: list[int] = None):
         if ub is None:
             ub = self.model.infinity if var_type != VarType.BINARY else 1
         if lb is None:
@@ -54,6 +59,11 @@ class OptCplexWrapper(OwlInterface):
             v = self.model.integer_var_dict(keys=indices, lb=lb, ub=ub, name=name)
         elif var_type == VarType.CONTINUOUS:
             v = self.model.continuous_var_dict(keys=indices, lb=lb, ub=ub, name=name)
+        if start is not None and var_type != VarType.CONTINUOUS:
+            if self.warm_start is None:
+                self.warm_start = self.model.new_solution()
+            for i, idx in enumerate(indices):
+                self.warm_start.add_var_value(v[idx], start[i])
         return v
 
     def add_constraint(self, expr, name: str):
@@ -82,6 +92,9 @@ class OptCplexWrapper(OwlInterface):
             self.model.minimize(total_obj)
 
     def solve(self) -> ModelStatus:
+        if self.warm_start is not None:
+            self.model.add_mip_start(self.warm_start)
+            self.logger.info("Applied warm start.")
         self.solution = self.model.solve(log_output=self.verbose, clean_before_solve=True)
         if self.solution is None:
             status = self.model.solve_details.status_code
@@ -99,6 +112,7 @@ class OptCplexWrapper(OwlInterface):
         if output_file_path is not None:
             cobj = cref.refine_conflict(self.model, display=False)
             cobj.as_output_table(use_df=True).to_csv(output_file_path)
+            cobj.display()
         else:
             return cref.refine_conflict(self.model, display=True)
 
@@ -115,6 +129,7 @@ class OptCplexWrapper(OwlInterface):
     def set_parameter(self, k: ModelParams, v):
         if k == ModelParams.VERBOSE:
             self.model.verbose = v
+            self.verbose = v
         if k == ModelParams.TIMELIMIT:
             self.model.set_time_limit(v)
         if k == ModelParams.MIPGAP:
@@ -145,3 +160,20 @@ class OptCplexWrapper(OwlInterface):
             elif operation == "/":
                 res.append(vars1_ls[i] / vars2_ls[i])
         return res
+
+    def set_start(self, var_name, var_value):
+        if self.warm_start is None:
+            self.warm_start = self.model.new_solution()
+        self.warm_start.add_var_value(var_name, var_value)
+
+    def setup_lazy_cst_callback(self, callback_fn: callable):
+        from owlipy.wrappers.cplex.cplex_lazy import DOLazyCallback
+
+        cb = self.model.register_callback(DOLazyCallback)
+        cb.callback_fn = callback_fn
+        model_vars = {}
+        for v in self.model.iter_variables():
+            model_vars[v.name] = v
+        cb.model_vars = model_vars
+
+        self.model.lazy_callback = cb
