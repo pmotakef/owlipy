@@ -55,3 +55,9 @@ class OwlInterface:
 
     def setup_lazy_cst_callback(self, callback_fn: callable):
         raise NotImplementedError()
+
+    def setup_branch_callback(self, callback_fn: callable, heuristic_pruning: bool = False):
+        raise NotImplementedError()
+
+    def setup_heuristic_callback(self, callback_fn: callable):
+        raise NotImplementedError()

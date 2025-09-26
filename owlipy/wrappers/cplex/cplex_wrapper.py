@@ -4,7 +4,7 @@ import docplex.mp.conflict_refiner as cr
 from docplex.mp.constr import AbstractConstraint
 from docplex.mp.model import Model
 
-from owlipy.types import ModelParams, ModelStatus, ObjSense, VarType
+from owlipy.types import ModelParams, ModelStatus, ObjSense, VarType, MIPEmphasisParams, MIPStrategyHeuristicPump
 from owlipy.exceptions import SolverException
 from owlipy.owl_interface import OwlInterface
 
@@ -109,12 +109,21 @@ class OptCplexWrapper(OwlInterface):
 
     def compute_iis(self, output_file_path: str | None = None):
         cref = cr.ConflictRefiner()
+        cobj = cref.refine_conflict(self.model, display=False)
         if output_file_path is not None:
-            cobj = cref.refine_conflict(self.model, display=False)
-            cobj.as_output_table(use_df=True).to_csv(output_file_path)
-            cobj.display()
-        else:
-            return cref.refine_conflict(self.model, display=True)
+            print("--- Full Conflict Constraint Names ---")
+            with open(output_file_path, 'w') as f:
+                f.write("Status, Name, Constraint\n")  # Write header
+                for conflict_obj in cobj.iter_conflicts():
+                    full_name = conflict_obj.name
+                    status = conflict_obj.status
+                    expression = str(conflict_obj.element)
+
+                    print(f"Status: {status}, Name: {full_name}")
+
+                    f.write(f'"{status}", "{full_name}", "{expression}"\n')
+            print(f"\nFull conflict details written to: {output_file_path}")
+        return cobj
 
     def get_value(self, var_name):
         if isinstance(var_name, (int, float)):
@@ -136,6 +145,14 @@ class OptCplexWrapper(OwlInterface):
             self.model.parameters.mip.tolerances.mipgap = v
         if k == ModelParams.MIPGAPABS:
             self.model.parameters.mip.tolerances.absmipgap = v
+        if k == ModelParams.MIP_EMPHASIS:
+            if not isinstance(v, MIPEmphasisParams):
+                raise SolverException("Invalid type for MIPEmphasisParams")
+            self.model.parameters.emphasis.mip = v.value
+        if k == ModelParams.MIP_FEAS_PUMP:
+            if not isinstance(v, MIPStrategyHeuristicPump):
+                raise SolverException("Invalid type for MIPStrategyHeuristicPump")
+            self.model.parameters.mip.strategy.fpheur = v.value
 
     def get_sum(self, variables: list | dict):
         if isinstance(variables, dict):
@@ -177,3 +194,28 @@ class OptCplexWrapper(OwlInterface):
         cb.model_vars = model_vars
 
         self.model.lazy_callback = cb
+
+    def setup_branch_callback(self, callback_fn: callable, heuristic_pruning: bool = False):
+        from owlipy.wrappers.cplex.cplex_lazy import DOBranchSearchCallback
+
+        cb = self.model.register_callback(DOBranchSearchCallback)
+        cb.callback_fn = callback_fn
+        cb.heuristic_pruning = heuristic_pruning
+        model_vars = {}
+        for v in self.model.iter_variables():
+            model_vars[v.name] = v
+        cb.model_vars = model_vars
+
+        # 0: AUTO, 1: TRADITIONAL, 2: DYNAMIC
+        # https://www.ibm.com/docs/en/icos/22.1.0?topic=parameters-mip-dynamic-search-switch
+        self.model.parameters.mip.strategy.search.set(1)
+
+    def setup_heuristic_callback(self, callback_fn: callable):
+        from owlipy.wrappers.cplex.cplex_lazy import DOHeuristicCallback
+
+        cb = self.model.register_callback(DOHeuristicCallback)
+        cb.callback_fn = callback_fn
+        model_vars = {}
+        for v in self.model.iter_variables():
+            model_vars[v.name] = v
+        cb.model_vars = model_vars
