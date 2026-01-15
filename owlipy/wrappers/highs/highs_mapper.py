@@ -16,8 +16,8 @@ HIGHS_MODEL_STATUS = {
 }
 
 HIGHS_PARAMS = {
-    ModelParams.MIPGAP: highspy.HighsOptions.mip_rel_gap,
-    ModelParams.VERBOSE: highspy.HighsOptions.output_flag,
-    ModelParams.MIPGAPABS: highspy.HighsOptions.mip_abs_gap,
-    ModelParams.TIMELIMIT: highspy.HighsOptions.time_limit,
+    ModelParams.MIPGAP: "mip_rel_gap",
+    ModelParams.VERBOSE: "output_flag",
+    ModelParams.MIPGAPABS: "mip_abs_gap",
+    ModelParams.TIMELIMIT: "time_limit",
 }

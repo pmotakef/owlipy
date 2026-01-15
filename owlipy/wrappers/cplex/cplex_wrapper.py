@@ -4,7 +4,7 @@ import docplex.mp.conflict_refiner as cr
 from docplex.mp.constr import AbstractConstraint
 from docplex.mp.model import Model
 
-from owlipy.types import ModelParams, ModelStatus, ObjSense, VarType
+from owlipy.types import ModelParams, ModelStatus, ObjSense, VarType, MIPEmphasisParams, MIPStrategyHeuristicPump
 from owlipy.exceptions import SolverException
 from owlipy.owl_interface import OwlInterface
 
@@ -19,6 +19,7 @@ class OptCplexWrapper(OwlInterface):
         self.objective_fn = 0
         self.verbose = False
         self.quality_metrics = True
+        self.warm_start = None
 
     def set_env(self, **kwargs):
         self.env = None
@@ -28,7 +29,7 @@ class OptCplexWrapper(OwlInterface):
         self.model.quality_metrics = self.quality_metrics
         self.logger.info(f"created cplex model {name}")
 
-    def add_var(self, name: str, var_type: VarType = VarType.CONTINUOUS, lb: float = None, ub: float = None, start: float = None):
+    def add_var(self, name: str, var_type: VarType = VarType.CONTINUOUS, lb: float = None, ub: float = None, start: int = None):
         if ub is None:
             ub = self.model.infinity if var_type != VarType.BINARY else 1
         if lb is None:
@@ -40,9 +41,13 @@ class OptCplexWrapper(OwlInterface):
             v = self.model.integer_var(lb=lb, ub=ub, name=name)
         elif var_type == VarType.CONTINUOUS:
             v = self.model.continuous_var(lb=lb, ub=ub, name=name)
+        if start is not None and var_type != VarType.CONTINUOUS:
+            if self.warm_start is None:
+                self.warm_start = self.model.new_solution()
+            self.warm_start.add_var_value(v, start)
         return v
 
-    def add_vars(self, indices: list, name: str, var_type: VarType = VarType.CONTINUOUS, lb: float = None, ub: float = None, start: list[float] = None):
+    def add_vars(self, indices: list, name: str, var_type: VarType = VarType.CONTINUOUS, lb: float = None, ub: float = None, start: list[int] = None):
         if ub is None:
             ub = self.model.infinity if var_type != VarType.BINARY else 1
         if lb is None:
@@ -54,6 +59,11 @@ class OptCplexWrapper(OwlInterface):
             v = self.model.integer_var_dict(keys=indices, lb=lb, ub=ub, name=name)
         elif var_type == VarType.CONTINUOUS:
             v = self.model.continuous_var_dict(keys=indices, lb=lb, ub=ub, name=name)
+        if start is not None and var_type != VarType.CONTINUOUS:
+            if self.warm_start is None:
+                self.warm_start = self.model.new_solution()
+            for i, idx in enumerate(indices):
+                self.warm_start.add_var_value(v[idx], start[i])
         return v
 
     def add_constraint(self, expr, name: str):
@@ -82,6 +92,9 @@ class OptCplexWrapper(OwlInterface):
             self.model.minimize(total_obj)
 
     def solve(self) -> ModelStatus:
+        if self.warm_start is not None:
+            self.model.add_mip_start(self.warm_start)
+            self.logger.info("Applied warm start.")
         self.solution = self.model.solve(log_output=self.verbose, clean_before_solve=True)
         if self.solution is None:
             status = self.model.solve_details.status_code
@@ -96,11 +109,21 @@ class OptCplexWrapper(OwlInterface):
 
     def compute_iis(self, output_file_path: str | None = None):
         cref = cr.ConflictRefiner()
+        cobj = cref.refine_conflict(self.model, display=False)
         if output_file_path is not None:
-            cobj = cref.refine_conflict(self.model, display=False)
-            cobj.as_output_table(use_df=True).to_csv(output_file_path)
-        else:
-            return cref.refine_conflict(self.model, display=True)
+            print("--- Full Conflict Constraint Names ---")
+            with open(output_file_path, 'w') as f:
+                f.write("Status, Name, Constraint\n")  # Write header
+                for conflict_obj in cobj.iter_conflicts():
+                    full_name = conflict_obj.name
+                    status = conflict_obj.status
+                    expression = str(conflict_obj.element)
+
+                    print(f"Status: {status}, Name: {full_name}")
+
+                    f.write(f'"{status}", "{full_name}", "{expression}"\n')
+            print(f"\nFull conflict details written to: {output_file_path}")
+        return cobj
 
     def get_value(self, var_name):
         if isinstance(var_name, (int, float)):
@@ -115,12 +138,21 @@ class OptCplexWrapper(OwlInterface):
     def set_parameter(self, k: ModelParams, v):
         if k == ModelParams.VERBOSE:
             self.model.verbose = v
+            self.verbose = v
         if k == ModelParams.TIMELIMIT:
             self.model.set_time_limit(v)
         if k == ModelParams.MIPGAP:
             self.model.parameters.mip.tolerances.mipgap = v
         if k == ModelParams.MIPGAPABS:
             self.model.parameters.mip.tolerances.absmipgap = v
+        if k == ModelParams.MIP_EMPHASIS:
+            if not isinstance(v, MIPEmphasisParams):
+                raise SolverException("Invalid type for MIPEmphasisParams")
+            self.model.parameters.emphasis.mip = v.value
+        if k == ModelParams.MIP_FEAS_PUMP:
+            if not isinstance(v, MIPStrategyHeuristicPump):
+                raise SolverException("Invalid type for MIPStrategyHeuristicPump")
+            self.model.parameters.mip.strategy.fpheur = v.value
 
     def get_sum(self, variables: list | dict):
         if isinstance(variables, dict):
@@ -145,3 +177,45 @@ class OptCplexWrapper(OwlInterface):
             elif operation == "/":
                 res.append(vars1_ls[i] / vars2_ls[i])
         return res
+
+    def set_start(self, var_name, var_value):
+        if self.warm_start is None:
+            self.warm_start = self.model.new_solution()
+        self.warm_start.add_var_value(var_name, var_value)
+
+    def setup_lazy_cst_callback(self, callback_fn: callable):
+        from owlipy.wrappers.cplex.cplex_lazy import DOLazyCallback
+
+        cb = self.model.register_callback(DOLazyCallback)
+        cb.callback_fn = callback_fn
+        model_vars = {}
+        for v in self.model.iter_variables():
+            model_vars[v.name] = v
+        cb.model_vars = model_vars
+
+        self.model.lazy_callback = cb
+
+    def setup_branch_callback(self, callback_fn: callable, heuristic_pruning: bool = False):
+        from owlipy.wrappers.cplex.cplex_lazy import DOBranchSearchCallback
+
+        cb = self.model.register_callback(DOBranchSearchCallback)
+        cb.callback_fn = callback_fn
+        cb.heuristic_pruning = heuristic_pruning
+        model_vars = {}
+        for v in self.model.iter_variables():
+            model_vars[v.name] = v
+        cb.model_vars = model_vars
+
+        # 0: AUTO, 1: TRADITIONAL, 2: DYNAMIC
+        # https://www.ibm.com/docs/en/icos/22.1.0?topic=parameters-mip-dynamic-search-switch
+        self.model.parameters.mip.strategy.search.set(1)
+
+    def setup_heuristic_callback(self, callback_fn: callable):
+        from owlipy.wrappers.cplex.cplex_lazy import DOHeuristicCallback
+
+        cb = self.model.register_callback(DOHeuristicCallback)
+        cb.callback_fn = callback_fn
+        model_vars = {}
+        for v in self.model.iter_variables():
+            model_vars[v.name] = v
+        cb.model_vars = model_vars

@@ -49,3 +49,15 @@ class OwlInterface:
 
     def inner_op(self, vars1: list | dict, vars2: list | dict, operation: str = "+") -> list:
         raise NotImplementedError()
+
+    def set_start(self, var_name, var_value):
+        raise NotImplementedError()
+
+    def setup_lazy_cst_callback(self, callback_fn: callable):
+        raise NotImplementedError()
+
+    def setup_branch_callback(self, callback_fn: callable, heuristic_pruning: bool = False):
+        raise NotImplementedError()
+
+    def setup_heuristic_callback(self, callback_fn: callable):
+        raise NotImplementedError()

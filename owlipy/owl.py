@@ -21,3 +21,8 @@ def get_solver_model(solver_name: Solvers) -> OwlInterface:
         from owlipy.wrappers.highs.highs_wrapper import OptHighsWrapper
 
         return OptHighsWrapper()
+
+    elif solver_name == Solvers.HEXALY:
+        from owlipy.wrappers.hexaly.hexaly_wrapper import OptHexalyWrapper
+
+        return OptHexalyWrapper()
